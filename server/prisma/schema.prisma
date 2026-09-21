@@ -1,0 +1,128 @@
+// Prisma Schema para CANACO Servytur Huauchinango
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  MERCHANT
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SpotCategory {
+  WATERFALL   // Cascadas
+  RIVER       // Ríos
+  HILL        // Cerros / Miradores
+  HISTORIC    // Centro Histórico / Monumentos
+  DAM         // Presas
+  ECOTOURISM  // Ecoturismo y Parques
+}
+
+model User {
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  password              String                 // Hash Bcrypt
+  fullName              String
+  businessName          String?                // Nombre comercial para comerciantes
+  phone                 String?
+  role                  Role                   @default(MERCHANT)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  participationRequests ParticipationRequest[]
+  auditLogs             AuditLog[]
+
+  @@map("users")
+}
+
+model TouristSpot {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  category    SpotCategory @default(ECOTOURISM)
+  location    String       // Ej: "Huauchinango, Puebla", "Tenango de las Flores"
+  latitude    Float?
+  longitude   Float?
+  imageUrl    String?
+  isFeatured  Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("tourist_spots")
+}
+
+model Event {
+  id                    String                 @id @default(uuid())
+  title                 String
+  description           String
+  location              String                 // Sede
+  startDate             DateTime
+  endDate               DateTime
+  capacityLimit         Int                    @default(50) // Cupo límite para comerciantes
+  currentAcceptedCount  Int                    @default(0)
+  imageUrl              String?
+  isPublished           Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  participationRequests ParticipationRequest[]
+
+  @@map("events")
+}
+
+model Route {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  difficulty  String   @default("Moderada")    // Fácil, Moderada, Avanzada
+  duration    String   // Ej: "3 horas", "Medio día"
+  stops       String   // JSON o lista de paradas
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("routes")
+}
+
+model ParticipationRequest {
+  id           String        @id @default(uuid())
+  userId       String
+  eventId      String
+  notes        String?       // Descripción de productos o giro a vender en la feria/expo
+  standType    String?       // Tipo de espacio solicitado: Artesanía, Gastronomía, Comercio General
+  status       RequestStatus @default(PENDING)
+  adminRemarks String?       // Retroalimentación o motivo si fue aceptado/rechazado
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId]) // Una solicitud por comerciante por evento
+  @@map("participation_requests")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // CREATE, UPDATE, DELETE, APPROVE_REQUEST, REJECT_REQUEST
+  entity    String   // Event, TouristSpot, ParticipationRequest
+  entityId  String?
+  details   String?  // Detalles en formato JSON o descripción
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
